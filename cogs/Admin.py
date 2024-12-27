@@ -53,6 +53,7 @@ class Admin( commands.Cog ):
         await ctx.response.send_message( embed = embed )
 
 
+
     @app_commands.command( name = "set_up_role", description = "設定抽卡身分組" )
     @app_commands.check( check_if_it_is_owner )
     @app_commands.describe( role = "身分組" )
