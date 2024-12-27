@@ -3,6 +3,7 @@ import json
 import random
 
 from datetime import date, datetime
+from asyncio import Lock
 from discord import app_commands
 from discord.ext import commands
 from discord.app_commands import Choice
@@ -18,6 +19,8 @@ class Gamble( commands.Cog ):
         self.chance = Global.chance
         # 輸出的emoji
         self.emoji = Global.emoji
+        # 用戶 ID 對應的鎖
+        self.locks = {}
 
     def once_draw( self ):
         num = random.random()
@@ -40,6 +43,12 @@ class Gamble( commands.Cog ):
 
         return data
 
+    async def get_user_lock(self, user_id):
+        """取得對應用戶的鎖，如果不存在則創建"""
+        if user_id not in self.locks:
+            self.locks[user_id] = Lock()
+        return self.locks[user_id]
+
     # 每日簽到
     @app_commands.command( name = "sign", description = "每日簽到" )
     async def sign( self, ctx: discord.Interaction ):
@@ -47,7 +56,7 @@ class Gamble( commands.Cog ):
         last_signed_time = await Database.get_signed_time( user_id )
         if last_signed_time:
             last_signed_time = datetime.strptime( last_signed_time, "%Y-%m-%d" ).date()
-        else:
+        elif await Database.get_player( user_id ) is None:
             await Database.add_player( user_id, ctx.user.name )
 
         today = date.today()
@@ -70,27 +79,31 @@ class Gamble( commands.Cog ):
     async def draw( self, ctx: discord.Interaction ):
         user_id = ctx.user.id
         user_name = ctx.user.name
-        coins = await Database.get_coins( user_id )
 
-        if coins < 10:
-            await ctx.response.send_message( f"剩餘點數不足10點，你目前只有{coins}點", ephemeral = True )
-            return
-        await Database.update_coins( user_id, -10 )
-        # 紀錄本次抽卡結果
-        data = await self.get_ten_draw( user_id )
-        await Database.update_gamble_history( user_id, data )
-        output = ""
-        for i in data:
-            output += self.emoji[ i ]
+        # 獲取用戶的鎖，避免競態條件
+        user_lock = await self.get_user_lock( user_id )
+        async with user_lock:
+            coins = await Database.get_coins( user_id )
 
-        embed = discord.Embed( color = discord.Color.dark_green() )
-        url = ""
-        if ctx.user.avatar:
-            url = ctx.user.avatar.url
-        embed.set_author( name = user_name, icon_url = url )
-        embed.add_field( name = "抽卡結果", value = output, inline = False )
+            if coins < 10:
+                await ctx.response.send_message( f"剩餘點數不足10點，你目前只有{coins}點", ephemeral = True )
+                return
+            await Database.update_coins( user_id, -10 )
+            # 紀錄本次抽卡結果
+            data = await self.get_ten_draw( user_id )
+            await Database.update_gamble_history( user_id, data )
+            output = ""
+            for i in data:
+                output += self.emoji[ i ]
 
-        await ctx.response.send_message( embed = embed )
+            embed = discord.Embed( color = discord.Color.dark_green() )
+            url = ""
+            if ctx.user.avatar:
+                url = ctx.user.avatar.url
+            embed.set_author( name = user_name, icon_url = url )
+            embed.add_field( name = "抽卡結果", value = output, inline = False )
+
+            await ctx.response.send_message( embed = embed )
 
     @app_commands.command( name = "player_data", description = "查看個人抽卡統計紀錄" )
     async def player_data( self, ctx: discord.Interaction ):
