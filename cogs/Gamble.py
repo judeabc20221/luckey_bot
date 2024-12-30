@@ -54,9 +54,7 @@ class Gamble( commands.Cog ):
     async def sign( self, ctx: discord.Interaction ):
         user_id = ctx.user.id
         last_signed_time = await Database.get_signed_time( user_id )
-        if last_signed_time:
-            last_signed_time = datetime.strptime( last_signed_time, "%Y-%m-%d" ).date()
-        elif await Database.get_player( user_id ) is None:
+        if await Database.get_player( user_id ) is None:
             await Database.add_player( user_id, ctx.user.name )
 
         today = date.today()
