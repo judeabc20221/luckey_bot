@@ -19,4 +19,4 @@ async def load():
             await bot.load_extension( f'cogs.{filename[:-3]}' )
 
 asyncio.run( load() )
-bot.run("MTMwNDQ5NDg3NjI2NzY0NzAxNw.Gg2VIv.5_GBsyu8vCZtK2CmnOAiZ-VrqnNPeker6lP28M")
+bot.run("Discord_bot_token")
